@@ -8,10 +8,11 @@ from scipy.integrate import quad
 data = { 'kEff': 4.0,
 	 'x0' : 0,
          'sigma': 1.0,
-         'NL' : 8.0,
+         'NL' : 1.0,
          'kbT' : 1.0,  
          'DG0' : -5.0,
          'maxDG' : 50,
+         'RG2' : 2.0,
          'epsilon_self' : 10**(-7),
          'nIntSamples' : 10000, #Nr of points to sample numerical integral
          'countBeta' : 1000,
@@ -257,8 +258,24 @@ def ABound( z, data ):
   bound = -kbT * np.log( np.exp( -( part1 + part2 ) / kbT ) - 1.0 ) #In practice, we count as bound only particles with at least a bond on the surface
   return bound
 
+def ARep( z, data ):
+  kbT = data[ 'kbT' ]
+  NL = data[ 'NL' ]
+  RG2 = data[ 'RG2' ] #This is the square of the gyration radius of the ligand and we assume ligands as Gaussian chains
+  sol = quad( lambda z: 1.0 / np.sqrt( 2 * np.pi * RG2 ) * np.exp( -z**2 / ( 2 * RG2 ) ), -z, 0 )[ 0 ] #We only need to integrate from -z to 0, then add the 0->Infinity part= 1/2
+  try:
+    NLPureRep = data[ "NLPureRep" ] #These are additional ligands only that cannot 
+				    #form bonds but are there purely to add steric 
+				    #repulsion, default is zero
+  except KeyError:
+    NLPureRep = 0
+
+  rep = -kbT * np.log( 0.5 + sol ) * ( NL + NLPureRep )
+  print( f"Repulsive energy at z={z} is {rep}" )
+  return rep 
+
 def A( z, data ):
-  return ABound( z, data ) 
+  return ABound( z, data ) + ARep( z, data ) 
   
 def integralAOnly( data ):
   zSamples = data[ 'zSamples' ]
@@ -301,34 +318,44 @@ def aveForce( direction, data ):
 #print( "pREq is:", pREq( r = 1.0, z = 1.0, pLEq = 0.5, data = data ) )
 #print( "Integrand Omega:", integrandOmega( r = 1.0, z = 1.0, data = data  ) )
 #print( "Integral Omega:", integralOmega( z = 1.0, data = data  ) )
+
+myRG2 = range( 1, 5 )
 myDG = range(5,-16,-1)
-myNL = range(1,20,2)
-mykEff = [ 1.0, 3.0, 5.0, 7.0 ] 
+myNL = range( 1, 12, 2 )
+mykEff = [ 1.0, 3.0, 5.0 ] 
 allData = []
 
-for kEff in mykEff:
-  for NL in myNL:
-    force = []
-    for DG in myDG:
-      data[ 'DG0' ] = DG 
-      data[ 'NL' ] = NL
-      data[ 'kEff' ] = kEff
-      rLimit( data )
-      print( f"Calculation for DG = {DG}; NL = {NL}; kEff = {kEff}" )
-      force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
+for RG2 in myRG2:
+  for kEff in mykEff:
+    for NL in myNL:
+      myRep = [ 0, NL, 2 * NL ]
+      for NLPureRep in myRep:
+        force = []
+        for DG in myDG:
+          data[ 'DG0' ] = DG 
+          data[ 'NL' ] = NL
+          data[ 'kEff' ] = kEff
+          data[ 'RG2' ] = RG2 
+          data[ 'NLPureRep' ] = NLPureRep 
+          rLimit( data )
+          print( f"Calculation for DG = {DG}; NL = {NL}; kEff = {kEff}" )
+          force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
 
-    force = np.array( force )
-    fileName = f"RESULTS_NL={NL}_kEFF={kEff}"
+        force = np.array( force )
+        repFrac = NLPureRep / NL
+        fileName = f"RESULTS_NL={NL}_kEFF={kEff}_RG2={RG2}_RepFrac={repFrac}"
 
-    with open( fileName, "w" ) as myF:
-      myF.write( "DG( kbT ) Fr ( kbT / nm ) Fz (kbT / nm ) \n" )
-      for dg, fr, fz in force:
-        myF.write( f"{dg} {fr} {fz} \n" )
+        with open( fileName, "w" ) as myF:
+          myF.write( "DG( kbT ), Fr ( kbT / nm ), Fz (kbT / nm ) \n" )
+          for dg, fr, fz in force:
+            myF.write( f"{dg} {fr} {fz} \n" )
 
-    figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
-    figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
-    plt.xlabel( "DG (kbT)" ) 
-    plt.ylabel( "Force (kbT)" ) 
-    plt.legend()
-    plt.savefig( fileName + ".eps" )
-    plt.close()
+        figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
+        figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
+        plt.xlabel( "DG (kbT)" ) 
+        plt.ylabel( "Force (kbT)" ) 
+        plt.legend()
+        plt.savefig( fileName + ".eps" )
+        plt.close()
+        print( "END OF CALCULATION" )
+        quit()

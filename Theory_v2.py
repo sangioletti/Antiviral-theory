@@ -301,7 +301,7 @@ def aveForce( direction, data ):
 #print( "pREq is:", pREq( r = 1.0, z = 1.0, pLEq = 0.5, data = data ) )
 #print( "Integrand Omega:", integrandOmega( r = 1.0, z = 1.0, data = data  ) )
 #print( "Integral Omega:", integralOmega( z = 1.0, data = data  ) )
-myDG = range(5,-16,-1)
+myDG = range(5,-12,-1)
 myNL = range(1,20,2)
 mykEff = [ 1.0, 3.0, 5.0, 7.0 ] 
 allData = []
@@ -318,7 +318,7 @@ for kEff in mykEff:
       force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
 
     force = np.array( force )
-    fileName = f"RESULTS_{NL}_kEFF_{kEff}"
+    fileName = f"RESULTS_NL={NL}_kEFF={kEff}_v2" #v2 is because it is generated with version 2 of the code
 
     with open( fileName, "w" ) as myF:
       myF.write( "DG( kbT ) Fr ( kbT / nm ) Fz (kbT / nm ) \n" )
