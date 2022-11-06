@@ -318,7 +318,7 @@ for kEff in mykEff:
       force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
 
     force = np.array( force )
-    fileName = f"RESULTS_{NL}_kEFF"
+    fileName = f"RESULTS_{NL}_kEFF_{kEff}"
 
     with open( fileName, "w" ) as myF:
       myF.write( "DG( kbT ) Fr ( kbT / nm ) Fz (kbT / nm ) \n" )
@@ -331,3 +331,4 @@ for kEff in mykEff:
     plt.ylabel( "Force (kbT)" ) 
     plt.legend()
     plt.savefig( fileName + ".eps" )
+    plt.close()
