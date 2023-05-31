@@ -1,5 +1,0 @@
-v1 integrals are calculated using quad function.
-
-v2 integrals are computed by sampling at finite number of points then using numerical quadrature. Everything related to binding terms works in v2
-
-v3 is like v2 but adds the part dependent on repulsion
