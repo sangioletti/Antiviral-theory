@@ -8,17 +8,15 @@ from scipy.integrate import quad
 data = { 'kEff': 4.0,
 	 'x0' : 0,
          'sigma': 1.0,
-         'NL' : 1.0,
+         'NL' : 8.0,
          'kbT' : 1.0,  
-         'DG0' : 10.0,
+         'DG0' : -5.0,
          'maxDG' : 50,
-         'RG2' : 2.0,
          'epsilon_self' : 10**(-7),
          'nIntSamples' : 10000, #Nr of points to sample numerical integral
          'countBeta' : 1000,
          'rhoNP' : 0.001,
-         'verbose' : False, 
-         'verbose2' : False 
+         'verbose' : False 
 	}
 
 def rLimit( data ):
@@ -66,7 +64,7 @@ def singleForce( r, z, data ):
   kEff = data['kEff']
   x0 = data['x0']
   kbT = data['kbT']
-  return - kEff * ( np.sqrt( r**2 + z**2 ) - x0 ) 
+  return - kEff * np.abs( np.sqrt( r**2 + z**2 ) - x0 ) 
 
 def integrand( r, z, sigma, pL, data ): 
   '''This is the integrand required for the calculation of the equilibrium value of 
@@ -126,21 +124,23 @@ def pLEq( z, data, epsilon = 10**(-5), epsilon2 = 10**(-3) ):
      
   return pLOut
 
-def pLEqOld( z, data, points = 10**4 ):
-  '''Calculation of pLEq via fixed sampling, Eq.4 in the paper'''
-  dpL = 1 / points
-  pLInput = np.array( range( 1, points + 1 ) ) * dpL
-  diffMin = 1000
-  for pL in pLInput:
-    pLOut = integral( pL, z, data )
-    diff = np.abs( pL - pLOut )
-    #print( "pL, pLOut, diff", pL, pLOut, diff )
-    if diff < diffMin:
-      diffMin = diff
-      pLEq = pLOut
-  print( "pLEq, Error:", pLEq, diffMin )
-     
-  return pLEq
+#NOTE: this can possibly be improved going to lower values of pL if 
+# you are at the boundary, that is, if pL that gives the minimum is at pLInput[ 0 ]
+#def pLEqOld( z, data, points = 10**4 ):
+#  '''Calculation of pLEq via fixed sampling, Eq.4 in the paper'''
+#  dpL = 1 / points
+#  pLInput = np.array( range( 1, points + 1 ) ) * dpL
+#  diffMin = 1000
+#  for pL in pLInput:
+#    pLOut = integral( pL, z, data )
+#    diff = np.abs( pL - pLOut )
+#    #print( "pL, pLOut, diff", pL, pLOut, diff )
+#    if diff < diffMin:
+#      diffMin = diff
+#      pLEq = pLOut
+#  print( "pLEq, Error:", pLEq, diffMin )
+#     
+#  return pLEq
 
 def pREq( r, z, pLEq, data ):
   '''Value of pREq, given once the solution to pLEq exists, Eq. 5 in the paper'''
@@ -165,8 +165,20 @@ def versor( r, z, direction ):
     raise ValueError
   return versor
 
-def integrandForce( r, z, direction, data ):
-  '''integrand necessary to calculate the average force exerted on a surface
+def forceSingle( r, z, data ):
+  '''Eq 6 in the paper'''
+  myChi = chi( r, z, data )
+  
+  #You need to multiply the force by the versor otherwise it will look like the two
+  #components are always the same which is not
+  myVersor = versor( r, z, direction = direction )
+  myForce = singleForce( r, z, data ) * myVersor
+  pL = pLEq( z, data )
+  pR = pREq( r, z, pL, data ) 
+  return NL * pR * pL * myChi * myForce 
+
+def integrandForce( z, direction, data ):
+  '''integrand of Eq. 7, necessary to calculate the average force exerted on a surface
   from a NP. (r,z) is the position of the receptor with respect to a NP at (0,0).
   Can be thought of as the force multiplied by the number of receptors at a 
   certain positions'''
@@ -179,30 +191,16 @@ def integrandForce( r, z, direction, data ):
   myForce = singleForce( r, z, data ) * myVersor
   pL = pLEq( z, data )
   pR = pREq( r, z, pL, data ) 
-  return -2 * np.pi * r * sigma * pR * pL * myChi * myForce 
+  return 2 * np.pi * r * sigma * forceBound 
 
 
-def integrandOmega( r, z, data ):
-  '''Integrand to calculate Omega, which is nothing but the total number of effective bonds formed
-  Eq.8 in the paper''' 
-  sigma = data[ 'sigma' ]
-  myChi = chi( r, z, data )
-  #You need to multiply the force by the versor otherwise it will look like the two
-  #components are always the same which is not
+def pCondBound( z, data ):
+  '''Eq. 9 in the paper, p( be at z | your are in the bound state)''' 
+  Omega = integralAOnly( data )
+  unnormalised = A( z, data )
+  result = unnormalised / Omega
 
-  #print( f'r,z {r}, {z}' )
-  pL = pLEq( z, data )
-  pR = pREq( r, z, pL, data ) 
-  return 2 * np.pi * r * sigma * pR * pL * myChi 
-
-def integrandPR( r, z, pL, data ):
-  '''Integrand to calculate Omega, which is nothing but the total number of effective bonds formed
-  Eq.8 in the paper''' 
-  sigma = data[ 'sigma' ]
-  myChi = chi( r, z, data )
-  pR = pREq( r, z, pL, data ) 
-  return 2 * np.pi * r * sigma * ( np.log( pR ) + 0.5 * ( 1.0 - pR ) )
-
+  return result
 
 def integralForce( z, direction, data ):
   '''Force weighted by the number of bonds at a certain position
@@ -252,67 +250,34 @@ def ABound( z, data ):
   kbT = data[ 'kbT' ]
   pL = pLEq( z, data )
   NL = data[ 'NL' ]
-  if data[ 'verbose2' ]:
-    print( f"pL at this distance: {pL}" )
+  #print( f"pL at this distance: {pL}" )
   part1 = kbT * NL * ( np.log( pL ) + 0.5 * ( 1 - pL ) )
   part2 = integralPR( z, pL, data )
-  if data[ 'verbose2' ]:
-    print( f"Bond energy total: {part1+part2}, from ligand {part1} from receptor {part2}" )
+  #print( f"Intermediate value of A: {part1+part2}" )
   bound = -kbT * np.log( np.exp( -( part1 + part2 ) / kbT ) - 1.0 ) #In practice, we count as bound only particles with at least a bond on the surface
-  if data[ 'verbose2' ]:
-    print( f"Bound energy with rescaling w.r.t. 1 bond: {bound}" )
   return bound
 
-def ARep( z, data ):
-  '''Repulsive energy of ligands and of inactive steric polymers, both described in the same way as P(x) = 1/2 kEff x**2
-  #A model for this would be a Gaussian chain in this way kEff ~ kbT / ( N_K a_K**2 ), a_K and N_K being the length of the 
-  Kuhn segment and their number''' 
-  kbT = data[ 'kbT' ]
-  NL = data[ 'NL' ]
-  #RG2 = data[ 'RG2' ] #This is the square of the gyration radius of the ligand and we assume ligands as Gaussian chains
-  kEff = data[ 'kEff' ] #This is the square of the gyration radius of the ligand and we assume ligands as Gaussian chains
-  sol = quad( lambda z: 1.0 / np.sqrt( 2 * np.pi * ( kbT / kEff ) ) * np.exp( -z**2 / ( 2 * ( kbT / kEff ) ) ), -z, 0 )[ 0 ] #We only need to integrate from -z to 0, then add the 0->Infinity part= 1/2
-  try:
-    NLPureRep = data[ "NLPureRep" ] #These are additional ligands only that cannot 
-				    #form bonds but are there purely to add steric 
-				    #repulsion, default is zero
-  except KeyError:
-    NLPureRep = 0
-
-  rep = -kbT * np.log( 0.5 + sol ) * ( NL + NLPureRep )
-  if data[ 'verbose2' ]:
-    print( f"Repulsive energy at z={z} is {rep}" )
-  return rep 
-
 def A( z, data ):
-  return ABound( z, data ) + ARep( z, data ) 
+  return ABound( z, data ) 
   
 def integralAOnly( data ):
-  kbT = data[ 'kbT' ]
   zSamples = data[ 'zSamples' ]
   myIntegrand = []
   for z in zSamples:
-    myA = np.exp( -A( z, data ) / kbT ) 
+    myA = np.exp( -A( z, data ) ) 
     myIntegrand.append( myA )
-    #print( f"Value of Qtot at z={z}: {myA}" )
+    print( f"Value of Qbound at z={z}: {myA}" )
   myIntegrand = np.array( myIntegrand )
   finalIntegral = scipy.integrate.simpson( myIntegrand, zSamples )
   return finalIntegral
 
 def integrandAveForce( z, direction, data ):
   kbT = data[ 'kbT' ]
+  rho = data[ 'rhoNP' ]
   if direction == 'r':
     sol = np.exp( -A( z, data ) / kbT ) * forceR( z, data )
-    if data[ 'verbose2' ]:
-      a = np.exp( -A( z, data ) / kbT ) 
-      b= forceR( z, data )
-      print( f"Exponential part: {a}, force on r-direction is {b}" )
   elif direction == 'z':
     sol = np.exp( -A( z, data ) / kbT ) * forceZ( z, data )
-    if data[ 'verbose2' ]:
-      a = np.exp( -A( z, data ) / kbT ) 
-      b= forceZ( z, data )
-      print( f"Exponential part: {a}, force on z- is {b}" )
   return sol
 
 def aveForce( direction, data ): 
@@ -320,19 +285,14 @@ def aveForce( direction, data ):
   print( f"Denominator is {den}" )
   zSamples = data[ 'zSamples' ]
   myIntegrand = []
-  aa = 0.0
   for z in zSamples:
     forceAve = integrandAveForce( z, direction, data ) 
     myIntegrand.append( forceAve )
-    #This part is now only for book-keeping
-    if data[ 'verbose2' ]:
-      bb = forceAve / den * abs( zSamples[ 1 ] - zSamples[ 0 ] )
-      aa += bb
-      print( f"z {z} force {forceAve}, scaled contribution {bb:.5e} cumulative {aa:.5e}" )
+    aa = forceAve / den
+    print( f"z {z} force {forceAve} and scaled contribution {aa:.5e}" )
   myIntegrand = np.array( myIntegrand )
-  finalIntegral = scipy.integrate.simpson( myIntegrand, zSamples ) / den
-  print( f"Average force is: {finalIntegral}" )
-  return finalIntegral 
+  finalIntegral = scipy.integrate.simpson( myIntegrand, zSamples )
+  return finalIntegral / den
 
 #rLimit( data )
 #print( " First Chi is: {0:.5e}".format( chi( 20, 1, data = data ) ) )
@@ -341,42 +301,34 @@ def aveForce( direction, data ):
 #print( "pREq is:", pREq( r = 1.0, z = 1.0, pLEq = 0.5, data = data ) )
 #print( "Integrand Omega:", integrandOmega( r = 1.0, z = 1.0, data = data  ) )
 #print( "Integral Omega:", integralOmega( z = 1.0, data = data  ) )
-
-myDG = [ 10 ]
-#myDG = [ 10, 7, 4, 1, -3, -6, -9 ]
-myNL = [ 1, 3, 5, 7, 9 ] 
-mykEff = [ 1.0, 3.0, 5.0 ] 
+myDG = range(5,-16,-1)
+myNL = range(1,20,2)
+mykEff = [ 1.0, 3.0, 5.0, 7.0 ] 
 allData = []
 
 for kEff in mykEff:
   for NL in myNL:
-    myRep = [ 0, NL, 2 * NL ]
-    for NLPureRep in myRep:
-      force = []
-      for DG in myDG:
-        data[ 'DG0' ] = DG 
-        data[ 'NL' ] = NL
-        data[ 'kEff' ] = kEff
-        data[ 'NLPureRep' ] = NLPureRep 
-        rLimit( data )
-        print( f"Calculation for DG = {DG}; NL = {NL}; kEff = {kEff}" )
-        force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
-        quit()
+    force = []
+    for DG in myDG:
+      data[ 'DG0' ] = DG 
+      data[ 'NL' ] = NL
+      data[ 'kEff' ] = kEff
+      rLimit( data )
+      print( f"Calculation for DG = {DG}; NL = {NL}; kEff = {kEff}" )
+      force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
 
-      force = np.array( force )
-      repFrac = NLPureRep / NL
-      fileName = f"RESULTS_NL={NL}_kEFF={kEff}_RepFrac={repFrac}"
+    force = np.array( force )
+    fileName = f"RESULTS_NL={NL}_kEFF={kEff}"
 
-      with open( fileName, "w" ) as myF:
-        myF.write( "DG( kbT ), Fr ( kbT / nm ), Fz (kbT / nm ) \n" )
-        for dg, fr, fz in force:
-          myF.write( f"{dg} {fr} {fz} \n" )
+    with open( fileName, "w" ) as myF:
+      myF.write( "DG( kbT ) Fr ( kbT / nm ) Fz (kbT / nm ) \n" )
+      for dg, fr, fz in force:
+        myF.write( f"{dg} {fr} {fz} \n" )
 
-      figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
-      figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
-      plt.xlabel( "DG (kbT)" ) 
-      plt.ylabel( "Force (kbT)" ) 
-      plt.legend()
-      plt.savefig( fileName + ".eps" )
-      plt.close()
-      print( "END OF CALCULATION" )
+    figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
+    figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
+    plt.xlabel( "DG (kbT)" ) 
+    plt.ylabel( "Force (kbT)" ) 
+    plt.legend()
+    plt.savefig( fileName + ".eps" )
+    plt.close()
