@@ -10,14 +10,15 @@ data = { 'kEff': 4.0,
          'sigma': 1.0,
          'NL' : 1.0,
          'kbT' : 1.0,  
-         'DG0' : -5.0,
+         'DG0' : 10.0,
          'maxDG' : 50,
          'RG2' : 2.0,
          'epsilon_self' : 10**(-7),
          'nIntSamples' : 10000, #Nr of points to sample numerical integral
          'countBeta' : 1000,
          'rhoNP' : 0.001,
-         'verbose' : False 
+         'verbose' : False, 
+         'verbose2' : False 
 	}
 
 def rLimit( data ):
@@ -251,18 +252,26 @@ def ABound( z, data ):
   kbT = data[ 'kbT' ]
   pL = pLEq( z, data )
   NL = data[ 'NL' ]
-  #print( f"pL at this distance: {pL}" )
+  if data[ 'verbose2' ]:
+    print( f"pL at this distance: {pL}" )
   part1 = kbT * NL * ( np.log( pL ) + 0.5 * ( 1 - pL ) )
   part2 = integralPR( z, pL, data )
-  #print( f"Intermediate value of A: {part1+part2}" )
+  if data[ 'verbose2' ]:
+    print( f"Bond energy total: {part1+part2}, from ligand {part1} from receptor {part2}" )
   bound = -kbT * np.log( np.exp( -( part1 + part2 ) / kbT ) - 1.0 ) #In practice, we count as bound only particles with at least a bond on the surface
+  if data[ 'verbose2' ]:
+    print( f"Bound energy with rescaling w.r.t. 1 bond: {bound}" )
   return bound
 
 def ARep( z, data ):
+  '''Repulsive energy of ligands and of inactive steric polymers, both described in the same way as P(x) = 1/2 kEff x**2
+  #A model for this would be a Gaussian chain in this way kEff ~ kbT / ( N_K a_K**2 ), a_K and N_K being the length of the 
+  Kuhn segment and their number''' 
   kbT = data[ 'kbT' ]
   NL = data[ 'NL' ]
-  RG2 = data[ 'RG2' ] #This is the square of the gyration radius of the ligand and we assume ligands as Gaussian chains
-  sol = quad( lambda z: 1.0 / np.sqrt( 2 * np.pi * RG2 ) * np.exp( -z**2 / ( 2 * RG2 ) ), -z, 0 )[ 0 ] #We only need to integrate from -z to 0, then add the 0->Infinity part= 1/2
+  #RG2 = data[ 'RG2' ] #This is the square of the gyration radius of the ligand and we assume ligands as Gaussian chains
+  kEff = data[ 'kEff' ] #This is the square of the gyration radius of the ligand and we assume ligands as Gaussian chains
+  sol = quad( lambda z: 1.0 / np.sqrt( 2 * np.pi * ( kbT / kEff ) ) * np.exp( -z**2 / ( 2 * ( kbT / kEff ) ) ), -z, 0 )[ 0 ] #We only need to integrate from -z to 0, then add the 0->Infinity part= 1/2
   try:
     NLPureRep = data[ "NLPureRep" ] #These are additional ligands only that cannot 
 				    #form bonds but are there purely to add steric 
@@ -271,30 +280,39 @@ def ARep( z, data ):
     NLPureRep = 0
 
   rep = -kbT * np.log( 0.5 + sol ) * ( NL + NLPureRep )
-  print( f"Repulsive energy at z={z} is {rep}" )
+  if data[ 'verbose2' ]:
+    print( f"Repulsive energy at z={z} is {rep}" )
   return rep 
 
 def A( z, data ):
   return ABound( z, data ) + ARep( z, data ) 
   
 def integralAOnly( data ):
+  kbT = data[ 'kbT' ]
   zSamples = data[ 'zSamples' ]
   myIntegrand = []
   for z in zSamples:
-    myA = np.exp( -A( z, data ) ) 
+    myA = np.exp( -A( z, data ) / kbT ) 
     myIntegrand.append( myA )
-    print( f"Value of Qbound at z={z}: {myA}" )
+    #print( f"Value of Qtot at z={z}: {myA}" )
   myIntegrand = np.array( myIntegrand )
   finalIntegral = scipy.integrate.simpson( myIntegrand, zSamples )
   return finalIntegral
 
 def integrandAveForce( z, direction, data ):
   kbT = data[ 'kbT' ]
-  rho = data[ 'rhoNP' ]
   if direction == 'r':
     sol = np.exp( -A( z, data ) / kbT ) * forceR( z, data )
+    if data[ 'verbose2' ]:
+      a = np.exp( -A( z, data ) / kbT ) 
+      b= forceR( z, data )
+      print( f"Exponential part: {a}, force on r-direction is {b}" )
   elif direction == 'z':
     sol = np.exp( -A( z, data ) / kbT ) * forceZ( z, data )
+    if data[ 'verbose2' ]:
+      a = np.exp( -A( z, data ) / kbT ) 
+      b= forceZ( z, data )
+      print( f"Exponential part: {a}, force on z- is {b}" )
   return sol
 
 def aveForce( direction, data ): 
@@ -302,14 +320,19 @@ def aveForce( direction, data ):
   print( f"Denominator is {den}" )
   zSamples = data[ 'zSamples' ]
   myIntegrand = []
+  aa = 0.0
   for z in zSamples:
     forceAve = integrandAveForce( z, direction, data ) 
     myIntegrand.append( forceAve )
-    aa = forceAve / den
-    print( f"z {z} force {forceAve} and scaled contribution {aa:.5e}" )
+    #This part is now only for book-keeping
+    if data[ 'verbose2' ]:
+      bb = forceAve / den * abs( zSamples[ 1 ] - zSamples[ 0 ] )
+      aa += bb
+      print( f"z {z} force {forceAve}, scaled contribution {bb:.5e} cumulative {aa:.5e}" )
   myIntegrand = np.array( myIntegrand )
-  finalIntegral = scipy.integrate.simpson( myIntegrand, zSamples )
-  return finalIntegral / den
+  finalIntegral = scipy.integrate.simpson( myIntegrand, zSamples ) / den
+  print( f"Average force is: {finalIntegral}" )
+  return finalIntegral 
 
 #rLimit( data )
 #print( " First Chi is: {0:.5e}".format( chi( 20, 1, data = data ) ) )
@@ -319,43 +342,41 @@ def aveForce( direction, data ):
 #print( "Integrand Omega:", integrandOmega( r = 1.0, z = 1.0, data = data  ) )
 #print( "Integral Omega:", integralOmega( z = 1.0, data = data  ) )
 
-myRG2 = range( 1, 5 )
-myDG = range(5,-16,-1)
-myNL = range( 1, 12, 2 )
+myDG = [ 10 ]
+#myDG = [ 10, 7, 4, 1, -3, -6, -9 ]
+myNL = [ 1, 3, 5, 7, 9 ] 
 mykEff = [ 1.0, 3.0, 5.0 ] 
 allData = []
 
-for RG2 in myRG2:
-  for kEff in mykEff:
-    for NL in myNL:
-      myRep = [ 0, NL, 2 * NL ]
-      for NLPureRep in myRep:
-        force = []
-        for DG in myDG:
-          data[ 'DG0' ] = DG 
-          data[ 'NL' ] = NL
-          data[ 'kEff' ] = kEff
-          data[ 'RG2' ] = RG2 
-          data[ 'NLPureRep' ] = NLPureRep 
-          rLimit( data )
-          print( f"Calculation for DG = {DG}; NL = {NL}; kEff = {kEff}" )
-          force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
-
-        force = np.array( force )
-        repFrac = NLPureRep / NL
-        fileName = f"RESULTS_NL={NL}_kEFF={kEff}_RG2={RG2}_RepFrac={repFrac}"
-
-        with open( fileName, "w" ) as myF:
-          myF.write( "DG( kbT ), Fr ( kbT / nm ), Fz (kbT / nm ) \n" )
-          for dg, fr, fz in force:
-            myF.write( f"{dg} {fr} {fz} \n" )
-
-        figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
-        figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
-        plt.xlabel( "DG (kbT)" ) 
-        plt.ylabel( "Force (kbT)" ) 
-        plt.legend()
-        plt.savefig( fileName + ".eps" )
-        plt.close()
-        print( "END OF CALCULATION" )
+for kEff in mykEff:
+  for NL in myNL:
+    myRep = [ 0, NL, 2 * NL ]
+    for NLPureRep in myRep:
+      force = []
+      for DG in myDG:
+        data[ 'DG0' ] = DG 
+        data[ 'NL' ] = NL
+        data[ 'kEff' ] = kEff
+        data[ 'NLPureRep' ] = NLPureRep 
+        rLimit( data )
+        print( f"Calculation for DG = {DG}; NL = {NL}; kEff = {kEff}" )
+        force.append( ( DG, aveForce( direction = 'r', data = data ), aveForce( direction = 'z', data = data ) ) )
         quit()
+
+      force = np.array( force )
+      repFrac = NLPureRep / NL
+      fileName = f"RESULTS_NL={NL}_kEFF={kEff}_RepFrac={repFrac}"
+
+      with open( fileName, "w" ) as myF:
+        myF.write( "DG( kbT ), Fr ( kbT / nm ), Fz (kbT / nm ) \n" )
+        for dg, fr, fz in force:
+          myF.write( f"{dg} {fr} {fz} \n" )
+
+      figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
+      figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
+      plt.xlabel( "DG (kbT)" ) 
+      plt.ylabel( "Force (kbT)" ) 
+      plt.legend()
+      plt.savefig( fileName + ".eps" )
+      plt.close()
+      print( "END OF CALCULATION" )
