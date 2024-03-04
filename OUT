@@ -1,0 +1,39 @@
+Calculation for DG = -10; NL = 10; kEff = 3.0
+Receptor per site: 3.141592653589793
+Traceback (most recent call last):
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 245, in fractionBound
+    Kbind = data[ 'Kbind' ]
+KeyError: 'Kbind'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 367, in Omega
+    result = data[ 'boundPartition' ]
+KeyError: 'boundPartition'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 424, in <module>
+    averageForce( direction = 'r', data = data ), 
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 199, in averageForce
+    frac = fractionBound( data )
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 248, in fractionBound
+    Kbind = As * Omega( data )
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 372, in Omega
+    myA[ i ] = np.exp( -ATot( zSamples[ i ], data ) ) 
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 362, in ATot
+    return ABonds( z, data ) 
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 336, in ABonds
+    pLequi = pLEq( z, data )
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 126, in pLEq
+    pLOut = max( 1 - integral( pLInput, z, data ), 0.0 )
+  File "/Users/sangiole/Dropbox/GitHub/Antiviral-theory/Theory_v7_vectorised.py", line 96, in integral
+    myIntegral = simpson( integrand( rSamples, z, sigma, pL, data ), rSamples )
+  File "/Users/sangiole/opt/anaconda3/lib/python3.9/site-packages/scipy/integrate/_quadrature.py", line 546, in simpson
+    result += _basic_simpson(y, 1, N-2, x, dx, axis)
+  File "/Users/sangiole/opt/anaconda3/lib/python3.9/site-packages/scipy/integrate/_quadrature.py", line 418, in _basic_simpson
+    result = np.sum(tmp, axis=axis)
+  File "<__array_function__ internals>", line 2, in sum
+KeyboardInterrupt
