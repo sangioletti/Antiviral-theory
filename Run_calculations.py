@@ -6,10 +6,11 @@ import numpy as np
 import numpy.ma as ma
 from Theory_v7 import *
 
-data = { 'kEff': 4.0,
+data = { 'kEff': 1.0,
 	 'x0' : 0,
          'sigma': 0.01,
          'NL' : 5,
+         'N_inert' : 0,
          'kbT' : 1.0,  
          'DG0' : -5.0,
          'L0' : 1.0,
