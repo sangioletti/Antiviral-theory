@@ -3,8 +3,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
+import scipy
 from scipy.integrate import quad
 from scipy.integrate import simpson
+from scipy.optimize import bisect 
 
 #Just left here as a reference
 #data = { 'kEff': 4.0,
@@ -41,10 +43,14 @@ def rLimit( data ):
   DG0 = data[ 'DG0' ]
   kEff = data[ 'kEff' ]
   rMax = np.sqrt( 2.0 * ( maxDG - DG0 ) / kEff ) + x0
-  if verbose:
-    print( f'rLimit is {rMax}' )
+  #if verbose:
+  rNP = data[ 'rNP' ] 
+  rMax = np.sqrt( np.pi * rNP**2 )
   DGeff = -np.log( chi( rMax, z = 0, data = data ) ) 
   if verbose:
+    print( f'rLimit is {rMax}' )
+    print( f'RESETTING rLimit' )
+    print( f'WARNING NEW rLimit to calculation based on size of site. New rLimit = {rMax} ' )
     print( f'DG at rLimit is {DGeff}' )
   data[ 'rMax' ] = rMax
   tot = data[ 'nIntSamples' ]
@@ -54,7 +60,7 @@ def rLimit( data ):
   data[ 'zSamples' ] = data[ 'rSamples' ]
   aa = data[ 'rSamples' ][::10]
   if verbose:
-    print( f'rSamples {aa}' )
+    print( f'(PRINTED EVERY TEN ONLY - rSamples {aa}' )
   return
 
 def chi( r, z, data ):
@@ -94,51 +100,41 @@ def integral( pL, z, data ):
     print( "Need to run rLimit once first" )
     raise ValueError
 
+  #if data[ 'verbose' ]: #Additional lines only for debug mode 
+  #  myIntegral = np.sum( integrand( rSamples, z, sigma, pL, data ) ) * dr  
+  #  sol = quad( integrand, 0, np.inf, args = ( z, sigma, pL, data ) )[ 0 ]
+  #  diff = abs( sol - myIntegral )
+  #  print( f'Compare. Numerical {myIntegral}  semi-analitical {sol}, difference {diff}' )
+  
   #sample at different values of r
   myIntegral = simpson( integrand( rSamples, z, sigma, pL, data ), rSamples )
-  
   if data[ 'verbose' ]: #Additional lines only for debug mode 
-    myIntegral = np.sum( integrand( rSamples, z, sigma, pL, data ) ) * dr  
-    sol = quad( integrand, 0, np.inf, args = ( z, sigma, pL, data ) )[ 0 ]
-    diff = abs( sol - myIntegral )
-    print( f'Compare. Numerical {myIntegral}  semi-analitical {sol}, difference {diff}' )
+    print( f'Calculated via Simpson: {myIntegral}' )
 
   return myIntegral
 
-def pLEq( z, data, epsilon = 10**(-5), epsilon2 = 10**(-3) ):
-  '''Self-consistent calculation of pLEq, Eq.4 in the paper'''
-  epsilon = data[ 'epsilon_self' ]
+def pLEq( z, data ):
+  '''Calculation of pLEq, Eq.4 in the paper, via bisection.
+  In practice, we find the value of pL for which
+  pL + f( pL ) - 1 = 0'''
 
+  myChi = np.exp( data[ 'DG0' ] ) 
+  epsilon = min( myChi**( -1.0 ), data[ 'epsilon_self' ] )
+  #print( f"Epsilon value for convergence = {epsilon}")
 
-  #print( f"z in pLEq {z}" )
+  a = 1.0 #This is the value for which the function is surely positive
+  b = 0.0 #This is the value for which the function is surely negative
 
-  #pLInput = min( 1.0, chi( r = 0, z = z, data = data )**(-1) )
-  pLInput = 1.0
-  pLOut = max( 1 - integral( pLInput, z, data ), 0.0 )
-  
-  #print( f"pLOut in pLEq {pLOut}" )
-
-  count = 0 
-  count2 = 3.0 
-  betaMix = 0.99
-  countBeta = data[ 'countBeta' ]
-  while abs( pLOut - pLInput ) > epsilon:
-    #print( f"pLinput, pLoutput {pLInput}, {pLOut}" ) 
-    pLInput = betaMix * pLInput + ( 1.0 - betaMix ) * pLOut
-    pLOut = max( 1 - integral( pLInput, z, data ), 0.0 )
-    count += 1
-    if ( np.mod( count, countBeta ) == 0 ):
-      #print( 'count, pLIn, plOut, betaMix', count, pLInput, pLOut, betaMix )
-      betaMix = betaMix + 9 * 10**( -count2 )
-      count2 += 1
-      countBeta *= 10
-      count = 0
-      #print( f"New betaMix: {betaMix}" )
+  pLOut = bisect( function_pL, a, b, args = ( z, data ) )
+  #print( f"Solution: {pLOut}" )
 
   if pLOut == 0.0:
     print( "pL too small?" ) 
      
   return pLOut
+
+def function_pL( pL, z, data ):
+  return pL + integral( pL, z, data ) - 1.0
 
 def pREq( r, z, pLEq, data ):
   '''Value of pREq, given once the solution to pLEq exists, Eq. 5 in the paper'''
@@ -166,16 +162,13 @@ def versor( r, z, direction ):
 def forceSingle( r, z, direction, data ):
   '''Eq 6 in the paper'''
   myChi = chi( r, z, data )
-  
   myVersor = versor( r, z, direction = direction )
-
-
   #print( f"Direction {direction} versor {myVersor}" )
-
   myForce = pureForce( r, z, data ) * myVersor
   pL = pLEq( z, data )
   pR = pREq( r, z, pL, data )
 
+  NL = data[ 'NL' ]
   result = NL * pR * pL * myChi * myForce  
  
   return result
@@ -229,6 +222,7 @@ def averageForce( direction, data ):
   myForce = np.zeros( len( rSamples ) )
 
   for i in range( len( myForce ) ):
+    #print( f'rSamples: {rSamples[i]}' )
     myForce[ i ] = forceBound( rSamples[ i ], direction, data )
   #myForce = forceBound( rSamples, direction, data )
  
@@ -237,7 +231,7 @@ def averageForce( direction, data ):
   #Now integrate! 
   finalIntegral = simpson( myIntegrand, rSamples )
 
-  print( f"Sum of forces {finalIntegral}, fraction bound particles {frac}, totRec {totRec}" )
+  #print( f"Sum of forces {finalIntegral}, fraction bound particles {frac}, totRec {totRec}" )
 
   result = ( frac / totRec ) * finalIntegral 
 
@@ -252,22 +246,23 @@ def fractionBound( data ):
   rNP = data[ 'rNP' ] #This is the radius of a Nanoparticle
   
   #Nr of adsorption sites on a single virus
-  nSites = max( 1, int( 4.0 * ( rV / rNP )**2 ) )
+  nSites = max( 2, int( 4.0 * ( rV / rNP )**2 ) )
   #Concentration of adsorption sites in solution
   cS0 = cV0 * nSites
   #Area of an adsorption site
   As = 4 * np.pi * rV**2 / nSites
+
   #Calculate the bound partition function
 
   recPerSite = data[ 'sigma' ] * As 
-  print( f"Receptor per site: {recPerSite}" )
+  #print( f"Receptor per site: {recPerSite}" )
 
   try:
     Kbind = data[ 'Kbind' ]
-    print( f"K bind is: {Kbind} ")
+    #print( f"K bind is: {Kbind} ")
   except KeyError:
     Kbind = As * Omega( data )
-    print( f"Calculate K bind is: {Kbind} ")
+    #print( f"Calculate K bind is: {Kbind} ")
   
   #Kbind = As * Omega( data )
 
@@ -371,25 +366,22 @@ def ABonds( z, data ):
   
   return bound
 
+def RepIntegral( z, data ):
+  '''This is the ratio of the partition function of a Gaussian chain with a confining surface at -z with respect to a pure
+  Gaussian spring'''
+  kEff = data['kEff']
+  kEff = data['kEffRep']
+  x0 = data['x0']
+  assert x0 == 0, AssertionError( "Theory as written only works for Gaussian chains of zero mean" )
+  integral = 1.0 / 2.0 * ( 1.0 + scipy.special.erf( np.sqrt( kEff ) * z ) ) 
+ 
+  return integral 
+
 def ARep( z, data ):
   kbT = data[ 'kbT' ]
-  #print( f"z here before: {z}" )
-  pLequi = pLEq( z, data )
-  NL = data[ 'NL' ]
-  #print( f"pL at this distance: {pLequi}" )
-  part1 = kbT * NL * ( np.log( pLequi ) + 0.5 * ( 1 - pLequi ) )
-  part2 = integralPR( z, pLequi, data )
-
-
-  qBound = np.exp( -( part1 + part2 ) / kbT ) - 1.0 #In practice, we count as bound only particles with at least a bond on the surface
-  if qBound > 0:
-    bound = -kbT * np.log( qBound )
-  else:
-    bound = +np.inf
-  
-  #print( f"z {z} , Bond energy part1 {part1}, part2 {part2}, Effective bound energy {bound}" )
-  
-  return bound
+  Nrep = data[ 'Nrep' ]
+  steric = -kbT * Nrep * np.log( RepIntegral( z, data ) ) 
+  return steric 
 
 def integrandPR( r, z, pLEq, data ):
   '''Integrand of the function to calculate receptor contribution to bond energy'''
@@ -400,13 +392,7 @@ def integrandPR( r, z, pLEq, data ):
   return result
 
 def ATot( z, data ):
-  Nrep = data["Nrep"]
-  L0 = data[ "L0" ]
-  if z < L0:
-    rep = Nrep * np.log( L0 / z )
-  else:
-    rep = 0.0 
-  return ABonds( z, data ) + rep 
+  return ABonds( z, data ) + ARep( z, data )
   
 def Omega( data ):
   '''Calculate Omega, the bound partition function, Eq. 10'''
@@ -418,7 +404,7 @@ def Omega( data ):
     for i in range( len( zSamples ) ):
       myA[ i ] = np.exp( -ATot( zSamples[ i ], data ) ) 
     result = simpson( myA, zSamples )
-    print( f"Omega: {result}" )
+    #print( f"Omega: {result}" )
     data[ 'boundPartition' ] = result
 
   return result 
