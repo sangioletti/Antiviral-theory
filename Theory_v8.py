@@ -8,26 +8,6 @@ from scipy.integrate import quad
 from scipy.integrate import simpson
 from scipy.optimize import bisect 
 
-#Just left here as a reference
-#data = { 'kEff': 4.0,
-#	 'x0' : 0,
-#         'sigma': 0.01,
-#         'NL' : 5,
-#         'kbT' : 1.0,  
-#         'DG0' : -5.0,
-#         'L0' : 1.0,
-#         'maxDG' : 20,
-#         'epsilon_self' : 10**(-7),
-#         'nIntSamples' : 200, #Nr of points to sample numerical integral
-#         'countBeta' : 1000,
-#         'rhoNP' : 0.001,
-#         'verbose' : False, 
-#         'cV0' :  10**(-9),  #This is the molar concentration of viruses
-#         'cNP0' : 10**(-6),  #This is the molar concentration of nanoparticles 
-#         'rV' : 100,#This is the radius of a single virus 
-#         'rNP': 10 #This is the radius of a Nanoparticle
-#	}
-
 def rLimit( data ):
   '''Calculates the limit of integration for r(z). In
   practice, integrates only until the value of the bond energy is 
@@ -42,24 +22,49 @@ def rLimit( data ):
   maxDG = data[ 'maxDG' ]
   DG0 = data[ 'DG0' ]
   kEff = data[ 'kEff' ]
-  rMax = np.sqrt( 2.0 * ( maxDG - DG0 ) / kEff ) + x0
-  #if verbose:
+  kEffRep = data[ 'kEffRep' ]
+  if kEffRep == 0.0:
+    print( "Somewhat unexpected, check all is fine. Resetting kEffRep to kEff for simple ligand" )
+    kEffRep = kEff 
+  kbT = data[ 'kbT' ]
   rNP = data[ 'rNP' ] 
-  rMax = np.sqrt( np.pi * rNP**2 )
+
+  if data[ 'NP_type' ] == 'full':
+    rNP = data[ 'rNP' ] + np.sqrt( 3.0 * kbT / kEff )
+    data[ 'rNP' ] = rNP
+    rMax = np.sqrt( np.pi * rNP**2 )
+  elif data[ 'NP_type' ] == 'star_polymer':
+    rNP = np.sqrt( 3.0 * kbT / min( kEff, kEffRep ) ) 
+    data[ 'rNP' ] = rNP
+    rMax = np.sqrt( np.pi * rNP**2 )
+  elif data[ 'NP_type' ] == 'fixed':
+    rMax = 3 * np.sqrt( 3.0 * kbT / kEff ) #This is basically 3 times the gyration radius
+    data[ 'rNP' ] = rMax 
+
+    #Old definition here was not really sustainable tbh, it basically modified rMax and thus other stuff according to the value of DG0, which kinda makes
+    #no sense since truly this should be an excluded volume term only
+    #rMax = np.sqrt( 2.0 * ( maxDG - DG0 ) / kEff ) + x0
+  else:
+    raise valueError('Value not recognized')
+ 
+  data[ 'rMax' ] = rMax
   DGeff = -np.log( chi( rMax, z = 0, data = data ) ) 
   if verbose:
     print( f'rLimit is {rMax}' )
     print( f'RESETTING rLimit' )
     print( f'WARNING NEW rLimit to calculation based on size of site. New rLimit = {rMax} ' )
     print( f'DG at rLimit is {DGeff}' )
-  data[ 'rMax' ] = rMax
+
   tot = data[ 'nIntSamples' ]
   dr = rMax / tot
   data[ 'dr' ] = dr
   data[ 'rSamples' ] = np.array( range( tot ) * dr + epsMin )
   data[ 'zSamples' ] = data[ 'rSamples' ]
-  aa = data[ 'rSamples' ][::10]
+
+  data[ 'calculated' ] = True
+
   if verbose:
+    aa = data[ 'rSamples' ][::10]
     print( f'(PRINTED EVERY TEN ONLY - rSamples {aa}' )
   return
 
@@ -234,8 +239,10 @@ def averageForce( direction, data ):
   #print( f"Sum of forces {finalIntegral}, fraction bound particles {frac}, totRec {totRec}" )
 
   result = ( frac / totRec ) * finalIntegral 
+  
+  result2 = ( 1.0 /  totRec ) * finalIntegral 
 
-  return result
+  return result, result2
 
 def fractionBound( data ):
   '''Use chemical equilibrium between sites and NPs to calculate the fraction
@@ -277,10 +284,13 @@ def fractionBound( data ):
   
 
 def totRecAds( data ):
-  cV0 = data[ 'cV0'] #This is the molar concentration of viruses
-  cNP0 = data[ 'cNP0'] #This is the molar concentration of nanoparticles 
+  #cV0 = data[ 'cV0'] #This is the molar concentration of viruses
+  #cNP0 = data[ 'cNP0'] #This is the molar concentration of nanoparticles 
   rV = data[ 'rV' ] #This is the radius of a single virus 
   rNP = data[ 'rNP' ] #This is the radius of a Nanoparticle
+
+  if data[ 'calculated' ] == False:
+    raise ValueError( 'You need to call rLimit first' )
   
   #Nr of adsorption sites on a single virus
   nSites = max( 1, int( 4.0 * ( rV / rNP )**2 ) )

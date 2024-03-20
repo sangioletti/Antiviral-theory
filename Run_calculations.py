@@ -4,7 +4,7 @@ sys.path.append("/Users/sangiole/Dropbox/Papers_data_live/Antiviral-theory")
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
-from Theory_v7 import *
+from Theory_v8 import *
 
 data = { 'kEff': 1.0,
          'kEffRep': 3.0,
@@ -23,14 +23,15 @@ data = { 'kEff': 1.0,
          'verbose' : False, 
          'cV0' :  10**(-9),  #This is the molar concentration of viruses
          'cNP0' : 10**(-6),  #This is the molar concentration of nanoparticles 
-         'rV' : 100,#This is the radius of a single virus 
+         'rV' : 100, #This is the radius of a single virus
+         'NP_type' : 'star_polymer',  
          'rNP': 10 #This is the radius of a Nanoparticle
 	}
 
-mySigma = np.logspace( -2, 0, 10 )
-myDG =  range( -20, 5, 1 )
-myNrep = [ 0, 3, 6, 9 ] #range( 0, 10, 2 ) 
-mykEff = [ 0.025, 0.05, 0.1, 0.2 ] 
+mySigma = np.logspace( -2, 0, 5 )
+myDG =  range( -16, 5, 2 )
+myNrep = [ 0, 6, 12 ] #range( 0, 10, 2 ) 
+mykEff = [ 0.025, 0.05, 0.1 ] 
 mykEffRep = [ 0.001, 0.01, 0.1 ] 
 allData = []
 convFact = 2.6 #Convert kbT/nm into pN assuming room temperature (300K) 
@@ -57,8 +58,10 @@ for sigma in mySigma:
           force.append( 
                       ( 
                         DG, 
-                        averageForce( direction = 'r', data = data ), 
-                        averageForce( direction = 'z', data = data ) 
+                        averageForce( direction = 'r', data = data )[ 0 ], 
+                        averageForce( direction = 'z', data = data )[ 0 ], 
+                        averageForce( direction = 'r', data = data )[ 1 ], 
+                        averageForce( direction = 'z', data = data )[ 1 ], 
                       ) 
                      )
   
@@ -69,14 +72,17 @@ for sigma in mySigma:
         fileName = f"RESULTS_sigma_{sigma}_kEff_{kEff}_kEffRep_{kEffRep}_NRep_{Nrep}" 
   
         with open( fileName, "w" ) as myF:
-          myF.write( "DG( kbT ) Fr ( kbT / nm ) Fz (kbT / nm ) Fr ( pN ) Fz ( pN ) \n" )
-          for dg, fr, fz in force:
-            myF.write( f"{dg} {fr} {fz} {fr*convFact} {fz*convFact} \n" )
+          myF.write( "#F? takes into account how many viral sites are bond, F?2 instead does not" )
+          myF.write( "#DG( kbT ) Fr ( kbT / nm ) Fz (kbT / nm ) Fr ( pN ) Fz ( pN ) Fr2( kbT/nm ) Fz2( kbT/nm ) \n" )
+          for dg, fr, fz, fr0, fz0 in force:
+            myF.write( f"{dg} {fr} {fz} {fr*convFact} {fz*convFact} {fr0} {fz0} \n" )
   
-        figure = plt.plot( myDG, force[ :, 1], "r-", linewidth =2, label = 'Fr' )
-        figure = plt.plot( myDG, force[ :, 2], "b-", linewidth =2, label = 'Fz' )
+        figure = plt.plot( myDG, force[ :, 1], "r.", linewidth =2, label = 'Fr' )
+        figure = plt.plot( myDG, force[ :, 2], "b.", linewidth =2, label = 'Fz' )
+        figure = plt.plot( myDG, force[ :, 3], "g-", linewidth =2, label = 'Fr2' )
+        figure = plt.plot( myDG, force[ :, 4], "k-", linewidth =2, label = 'Fz2' )
         plt.xlabel( "DG (kbT)" ) 
         plt.ylabel( "Force (kbT)" ) 
         plt.legend()
-        plt.savefig( fileName + ".eps" )
+        plt.savefig( fileName + ".pdf" )
         plt.close()
