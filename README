@@ -9,3 +9,5 @@ v4 (many equations changed because the previous theory did not really make sense
 v6 is the working implementation with the new formulas.
 
 v7 is like v6 but attempt at vectorising...
+
+v8 solves the equation for pL using bisection method instead of self-consistent equations. Very stable and much better (latter sometime did not converge!)
