@@ -376,21 +376,29 @@ def ABonds( z, data ):
   
   return bound
 
-def RepIntegral( z, data ):
+def RepIntegral( z, K ):
   '''This is the ratio of the partition function of a Gaussian chain with a confining surface at -z with respect to a pure
   Gaussian spring'''
-  kEff = data['kEff']
-  kEff = data['kEffRep']
-  x0 = data['x0']
-  assert x0 == 0, AssertionError( "Theory as written only works for Gaussian chains of zero mean" )
-  integral = 1.0 / 2.0 * ( 1.0 + scipy.special.erf( np.sqrt( kEff ) * z ) ) 
+  integral = 1.0 / 2.0 * ( 1.0 + scipy.special.erf( np.sqrt( K ) * z ) ) 
  
   return integral 
 
 def ARep( z, data ):
   kbT = data[ 'kbT' ]
-  Nrep = data[ 'Nrep' ]
-  steric = -kbT * Nrep * np.log( RepIntegral( z, data ) ) 
+  #Contribution from ligands
+  NN = data[ 'NL' ]
+  K = data[ 'kEff' ]
+  x0 = data['x0']
+  assert x0 == 0, AssertionError( "Theory as written only works for Gaussian chains of zero mean" )
+  steric = -kbT * NN * np.log( RepIntegral( z, K ) ) 
+
+  #Contribution from purely steric polymers
+  NN = data[ 'Nrep' ]
+  K = data[ 'kEffRep' ]
+  x0 = data['x0']
+  assert x0 == 0, AssertionError( "Theory as written only works for Gaussian chains of zero mean" )
+  steric += -kbT * NN * np.log( RepIntegral( z, K ) ) 
+
   return steric 
 
 def integrandPR( r, z, pLEq, data ):
