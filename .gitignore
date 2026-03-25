@@ -1,5 +1,7 @@
 RESULTS*
+*.dat
 *.eps
 *.npz
 production/*
 __pycache__/
+sandbox/

@@ -86,12 +86,29 @@ mamba activate antiviral
 ### Run a parameter sweep
 
 ```bash
+# With all defaults (reproduces the original hardcoded sweep):
 python run_calculations.py
+
+# Override base parameters:
+python run_calculations.py --NL 10 --rV 50 --NP-type full
+
+# Custom sweep ranges:
+python run_calculations.py --sweep-sigma "0.01,0.1" --sweep-DG "-10:0:2" --sweep-Nrep "0,6"
+
+# Skip plot generation and write to a specific directory:
+python run_calculations.py --no-plot --output-dir results/
 ```
 
-This sweeps over receptor density (`sigma`), ligand stiffness (`kEff`), repulsive chain stiffness (`kEffRep`), number of repulsive polymers (`Nrep`), and binding free energy (`DG0`). For each combination it writes:
+Run `python run_calculations.py --help` for the full list of options.
+
+**Sweep range syntax** (for `--sweep-*` flags):
+- `logspace:start:stop:n` — logarithmic spacing (e.g., `logspace:-2:0:5`)
+- `start:stop:step` — arithmetic range (e.g., `-16:5:2`)
+- `v1,v2,v3` — explicit comma-separated values (e.g., `0,6,12`)
+
+For each combination of swept parameters the script writes:
 - A text file `RESULTS_sigma_<s>_kEff_<k>_kEffRep_<kr>_NRep_<n>` with columns: `DG0`, `Fr`, `Fz`, `Fr(pN)`, `Fz(pN)`, `Fr0`, `Fz0`.
-- A corresponding PDF plot.
+- A corresponding PDF plot (unless `--no-plot` is passed).
 
 `Fr` and `Fz` are radial and axial force components weighted by the fraction of bound sites. `Fr0` and `Fz0` are the same forces normalised by total receptors only (without the bound-fraction prefactor). The conversion factor from k_BT/nm to pN at T = 300 K is 2.6.
 
@@ -113,6 +130,7 @@ Tests use exact floating-point equality (not tolerances) against 8 parameter com
 - NumPy
 - SciPy
 - Matplotlib
+- Typer
 
 ## License
 

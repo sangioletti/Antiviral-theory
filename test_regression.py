@@ -92,6 +92,37 @@ def test_against_golden():
     return failures == 0
 
 
+def test_favg_vs_fgivenb():
+    """Sanity check: <F> and <F|B> must differ when bound fraction < 1.
+
+    At weak binding (DG >= 0), the bound fraction is well below 1,
+    so fr != fr0 and fz != fz0. If they are equal, something is wrong
+    with the force weighting logic.
+    """
+    weak_cases = [c for c in TEST_CASES if c['DG0'] >= 0]
+    if not weak_cases:
+        print('  No weak-binding test cases (DG >= 0), skipping.')
+        return True
+
+    failures = 0
+    for i, overrides in enumerate(weak_cases):
+        data = copy.deepcopy(BASE_DATA)
+        data.update(overrides)
+        fr, fz, fr0, fz0 = run_new(data)
+        if fr == fr0:
+            print(f'  FAIL weak case DG={overrides["DG0"]}: <Fr> == <Fr|B> = {fr!r}')
+            failures += 1
+        if fz == fz0:
+            print(f'  FAIL weak case DG={overrides["DG0"]}: <Fz> == <Fz|B> = {fz!r}')
+            failures += 1
+    total = len(weak_cases) * 2
+    if failures == 0:
+        print(f'All {total} <F> vs <F|B> distinctness checks PASSED')
+    else:
+        print(f'{failures} FAILURES out of {total} distinctness checks')
+    return failures == 0
+
+
 if __name__ == '__main__':
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == 'generate':
@@ -99,8 +130,11 @@ if __name__ == '__main__':
         generate_golden()
     elif len(sys.argv) > 1 and sys.argv[1] == 'test':
         print('Testing against golden reference...')
-        ok = test_against_golden()
-        sys.exit(0 if ok else 1)
+        ok1 = test_against_golden()
+        print()
+        print('Testing <F> vs <F|B> distinctness...')
+        ok2 = test_favg_vs_fgivenb()
+        sys.exit(0 if (ok1 and ok2) else 1)
     else:
         print('Usage: python test_regression.py [generate|test]')
         sys.exit(1)
