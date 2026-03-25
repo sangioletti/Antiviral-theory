@@ -1,13 +1,17 @@
-v1 integrals are calculated using quad function.
+Antiviral NP-virus binding theory for the JCP paper.
 
-v2 integrals are computed by sampling at finite number of points then using numerical quadrature. Everything related to binding terms works in v2
+Files:
+  parameters.py       - Parameters dataclass (replaces the old data dictionary)
+  theory.py           - All physics functions (equations referenced in the paper)
+  run_calculations.py - Parameter sweep driver script
+  test_regression.py  - Regression tests against golden reference
 
-v3 is like v2 but adds the part dependent on repulsion
+Run: python run_calculations.py
+Test: python test_regression.py test
 
-v4 (many equations changed because the previous theory did not really make sense, you were dividing by the number of bonds including fractional ones to calculate the average bond energy but this does not make too  much sense. Needs to be divided by the number of receptors instead...look at your notes).
-
-v6 is the working implementation with the new formulas.
-
-v7 is like v6 but attempt at vectorising...
-
-v8 solves the equation for pL using bisection method instead of self-consistent equations. Very stable and much better (latter sometime did not converge!)
+Version history (old files in git history):
+  v1-v4: Early iterations with formula refinements
+  v6: Working implementation with new formulas
+  v7: Vectorisation attempt
+  v8: Bisection for pL equation (stable, always converges)
+  Current: Refactored from v8 — same math, cleaner structure

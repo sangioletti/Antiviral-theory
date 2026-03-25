@@ -1,3 +1,5 @@
 RESULTS*
 *.eps
+*.npz
 production/*
+__pycache__/
