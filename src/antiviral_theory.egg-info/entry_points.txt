@@ -1,0 +1,2 @@
+[console_scripts]
+antiviral = antiviral.run_calculations:app

@@ -50,6 +50,18 @@ class Parameters:
         self._boundPartition = None
         self._PBoundZ = None
 
+    def to_dict(self) -> dict:
+        """Export user-specified fields to a plain dict (safe for pickling / process pool)."""
+        return {
+            'kEff': self.kEff, 'kEffRep': self.kEffRep, 'x0': self.x0,
+            'sigma': self.sigma, 'NL': self.NL, 'Nrep': self.Nrep,
+            'kbT': self.kbT, 'DG0': self.DG0, 'L0': self.L0,
+            'maxDG': self.maxDG, 'epsilon_self': self.epsilon_self,
+            'nIntSamples': self.nIntSamples, 'verbose': self.verbose,
+            'cV0': self.cV0, 'cNP0': self.cNP0, 'rV': self.rV,
+            'NP_type': self.NP_type, 'rNP': self.rNP,
+        }
+
     @classmethod
     def from_dict(cls, d: dict) -> 'Parameters':
         """Construct Parameters from a legacy dict, ignoring unknown keys."""

@@ -1,128 +1,159 @@
 # Antiviral NP-Virus Binding Theory
 
-Statistical-mechanical theory for multivalent nanoparticle-virus binding via receptor-ligand interactions with steric repulsion from grafted polymers. Companion code for the JCP paper.
+Statistical-mechanical theory for multivalent nanoparticle-virus binding via receptor-ligand interactions with steric repulsion from grafted polymers.
 
 ## Physical model
 
-The code models the equilibrium binding between polymer-grafted nanoparticles (NPs) and a virus surface covered with receptors. The geometry is cylindrical: the NP sits at some distance *z* above a locally flat patch of the virus surface, with radial coordinate *r* parameterising receptor positions within the contact area.
+The model computes equilibrium binding and force between a polymer-grafted nanoparticle (NP) and a receptor-covered virus surface.
 
-Each NP carries two populations of grafted Gaussian chains:
-- **Ligands** (`NL`): can form bonds with surface receptors, modelled as Gaussian springs with effective stiffness `kEff` and intrinsic binding free energy `DG0`.
-- **Repulsive polymers** (`Nrep`): non-binding chains that generate steric repulsion upon confinement, with stiffness `kEffRep`.
+Each NP has two polymer populations:
+- Ligands (`NL`): binding chains with spring constant `kEff` and intrinsic binding free energy `DG0`.
+- Repulsive chains (`Nrep`): non-binding steric chains with spring constant `kEffRep`.
 
-The theory self-consistently solves for:
-1. **Ligand occupancy** *p_L* (Eq. 4) -- fraction of free ligands, solved via bisection on `pL + integral(pL) - 1 = 0`.
-2. **Receptor occupancy** *p_R* (Eq. 5) -- probability that a receptor at (*r*, *z*) is unbound.
-3. **Single-bond force** (Eq. 6) -- force from all bonds at a given (*r*, *z*), projected onto radial or axial components.
-4. **Bound-state average force** (Eq. 8) -- force at radial position *r*, averaged over *z* weighted by the conditional bound probability *P(z | bound)* (Eq. 9).
-5. **Total average force** (Eq. 7) -- force integrated over all receptors and weighted by the fraction of occupied adsorption sites.
+Main calculated quantities:
+1. Ligand occupancy `pL` (Eq. 4; solved by bisection).
+2. Receptor occupancy `pR` (Eq. 5).
+3. Bond-level forces (Eq. 6), projected into radial/axial components.
+4. Bound-state averaged force (Eq. 8, with `P(z|bound)` from Eq. 9).
+5. Total average force (Eq. 7), weighted by the bound-site fraction.
 
-Free energy at distance *z* is decomposed as:
-- **A_bonds**: binding contribution from ligand-receptor bonds.
-- **A_rep**: steric repulsion from confining both ligand and repulsive chains against the surface, using the partition-function ratio of a Gaussian chain with a hard wall at *-z* (error-function form).
-- **A_tot = A_bonds + A_rep**, which enters the bound partition function Omega (Eq. 10).
+Free energy at distance `z` is decomposed into:
+- `ABonds`: receptor-ligand contribution.
+- `ARep`: steric confinement contribution.
+- `ATot = ABonds + ARep`, which sets the bound partition function `Omega` (Eq. 10).
 
-The fraction of occupied adsorption sites on the virus is determined from a chemical-equilibrium calculation between NP and site concentrations.
+## Repository layout
 
-## Repository structure
-
-| File | Description |
+| Path | Description |
 |---|---|
-| `parameters.py` | `Parameters` dataclass holding all physical inputs, computed grid quantities, and internal caches |
-| `theory.py` | Core physics functions implementing Eqs. 4-10 of the paper |
-| `run_calculations.py` | Parameter-sweep driver: loops over `sigma`, `kEff`, `kEffRep`, `Nrep`, `DG0`; writes result files and PDF plots |
-| `test_regression.py` | Regression tests comparing refactored output against golden reference from the original `Theory_v8.py` |
+| `src/antiviral/parameters.py` | `Parameters` dataclass (inputs, computed grids, caches) |
+| `src/antiviral/theory.py` | Real-unit implementation |
+| `src/antiviral/theory_reduced.py` | Reduced-unit implementation (`kBT=1`, length in `Ree`) |
+| `src/antiviral/units.py` | Real/reduced unit conversion utilities |
+| `src/antiviral/run_calculations.py` | Typer CLI (`sweep`, `nl-sweep`) and sweep drivers |
+| `tests/` | Golden, unit-conversion, reduced-vs-real, NL sweep, and CLI smoke tests |
+
+## Installation
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+After installation, the CLI entrypoint is `antiviral`.
+
+If you do not install the package, run with:
+
+```bash
+PYTHONPATH=src python3 -m antiviral.run_calculations --help
+```
+
+## CLI usage
+
+Show help:
+
+```bash
+antiviral --help
+```
+
+### 1. DG sweep (`sweep`)
+
+Sweeps `DG0` across combinations of `sigma`, `kEff`, `kEffRep`, and `Nrep`.
+
+```bash
+# Default parameter sweep
+antiviral sweep
+
+# Custom parameter ranges
+antiviral sweep \
+  --sweep-sigma "0.01,0.1" \
+  --sweep-DG "-10:0:2" \
+  --sweep-Nrep "0,6" \
+  --sweep-kEff "0.025,0.05" \
+  --sweep-kEffRep "0.001,0.01"
+
+# Real-unit output and no plots
+antiviral sweep --output-units real --no-plot --output-dir results
+```
+
+### 2. Ligand-count sweep (`nl-sweep`)
+
+Sweeps force vs `NL` at fixed `DG0`, with one curve per `sigma`.
+
+```bash
+# Default NL sweep
+antiviral nl-sweep
+
+# Custom NL sweep in reduced units
+antiviral nl-sweep \
+  --input-units reduced \
+  --sweep-NL "1:30:1" \
+  --sweep-sigma "0.01,0.1,1.0" \
+  --plot-mode all \
+  --output-dir results
+```
+
+### Sweep-range syntax (`--sweep-*`)
+
+- `logspace:start:stop:n` (for example, `logspace:-2:0:5`)
+- `start:stop:step` (for example, `-16:5:2`)
+- `v1,v2,v3` (for example, `0,6,12`)
+
+Note: `start:stop:step` uses `numpy.arange`, so the stop value is not guaranteed to be included.
+
+## Output files
+
+### `sweep`
+
+For each `(sigma, kEff, kEffRep, Nrep)` combination:
+- Data file: `s{s}_k{k}_kr{kr}_Nsteric{n}[ _reduced ].dat`
+- Plots (unless `--no-plot`):
+  - `_Favg.pdf`
+  - `_FgivenB.pdf`
+  - `_combined.pdf`
+
+Columns in `.dat`:
+`DG`, `<Fr>`, `<Fz>`, `<Fr>(pN)`, `<Fz>(pN)`, `<Fr|B>`, `<Fz|B>`
+
+### `nl-sweep`
+
+For each `sigma`:
+- Data file: `NLsweep_DG{DG}_s{sigma}[ _reduced ].dat`
+- Plots depend on `--plot-mode` (`favg`, `fgivenb`, `combined`, `disjointed`, `all`)
 
 ## Parameters
 
-All parameters are fields of the `Parameters` dataclass. Energies are in units of *k_BT*, lengths in *nm*.
+All CLI physical parameters map directly to `antiviral.parameters.Parameters`, including:
+`kEff`, `kEffRep`, `x0`, `sigma`, `NL`, `Nrep`, `kbT`, `DG0`, `L0`, `maxDG`,
+`epsilon_self`, `nIntSamples`, `verbose`, `cV0`, `cNP0`, `rV`, `NP_type`, `rNP`.
 
-### User-specified (constructor arguments)
+`NP_type` options:
+- `full`
+- `star_polymer`
+- `fixed`
 
-| Parameter | Type | Description |
-|---|---|---|
-| `kEff` | float | Effective spring constant of ligand chains (k_BT/nm^2) |
-| `kEffRep` | float | Effective spring constant of repulsive (non-binding) chains (k_BT/nm^2) |
-| `x0` | float | Equilibrium bond length; must be 0 (Gaussian chain assumption) |
-| `sigma` | float | Surface density of receptors on the virus (nm^-2) |
-| `NL` | int | Number of ligands per NP |
-| `Nrep` | int | Number of repulsive (non-binding) polymers per NP |
-| `kbT` | float | Thermal energy (set to 1.0 for reduced units) |
-| `DG0` | float | Intrinsic ligand-receptor binding free energy (k_BT) |
-| `L0` | float | Reference length scale |
-| `maxDG` | float | Maximum free energy cutoff |
-| `epsilon_self` | float | Convergence parameter (legacy, unused in bisection path) |
-| `nIntSamples` | int | Number of grid points for numerical integration |
-| `verbose` | bool | Enable diagnostic output |
-| `cV0` | float | Molar concentration of viruses |
-| `cNP0` | float | Molar concentration of nanoparticles |
-| `rV` | float | Virus radius (nm) |
-| `NP_type` | str | NP geometry: `'full'`, `'star_polymer'`, or `'fixed'` |
-| `rNP` | float | Nanoparticle radius (nm); overwritten by `rLimit()` for some NP types |
+## Testing
 
-### Computed by `rLimit()`
-
-| Field | Description |
-|---|---|
-| `rMax` | Upper integration limit in *r* and *z* |
-| `dr` | Grid spacing |
-| `rSamples` / `zSamples` | 1-D sampling arrays (identical objects) |
-| `areaAds` | Area of a single adsorption site on the virus surface |
-
-### NP types
-
-- **`full`**: solid NP with radius `rNP`; effective size augmented by ligand fluctuation amplitude sqrt(3 k_BT / kEff).
-- **`star_polymer`**: no hard core; effective size set by the softer of the two chain populations.
-- **`fixed`**: integration domain set to 3x the gyration radius; `rNP` is overwritten to `rMax`.
-
-## Usage
-
-### Environment setup
+Run all tests:
 
 ```bash
-mamba activate antiviral
+python3 tests/run_all.py
 ```
 
-### Run a parameter sweep
+Or run individual suites:
 
 ```bash
-# With all defaults (reproduces the original hardcoded sweep):
-python run_calculations.py
-
-# Override base parameters:
-python run_calculations.py --NL 10 --rV 50 --NP-type full
-
-# Custom sweep ranges:
-python run_calculations.py --sweep-sigma "0.01,0.1" --sweep-DG "-10:0:2" --sweep-Nrep "0,6"
-
-# Skip plot generation and write to a specific directory:
-python run_calculations.py --no-plot --output-dir results/
+python3 tests/test_units.py
+python3 tests/test_reduced_vs_real.py
+python3 tests/test_cli.py
+python3 tests/test_nl_sweep.py
+python3 tests/test_golden.py
 ```
 
-Run `python run_calculations.py --help` for the full list of options.
-
-**Sweep range syntax** (for `--sweep-*` flags):
-- `logspace:start:stop:n` — logarithmic spacing (e.g., `logspace:-2:0:5`)
-- `start:stop:step` — arithmetic range (e.g., `-16:5:2`)
-- `v1,v2,v3` — explicit comma-separated values (e.g., `0,6,12`)
-
-For each combination of swept parameters the script writes:
-- A text file `RESULTS_sigma_<s>_kEff_<k>_kEffRep_<kr>_NRep_<n>` with columns: `DG0`, `Fr`, `Fz`, `Fr(pN)`, `Fz(pN)`, `Fr0`, `Fz0`.
-- A corresponding PDF plot (unless `--no-plot` is passed).
-
-`Fr` and `Fz` are radial and axial force components weighted by the fraction of bound sites. `Fr0` and `Fz0` are the same forces normalised by total receptors only (without the bound-fraction prefactor). The conversion factor from k_BT/nm to pN at T = 300 K is 2.6.
-
-### Regression tests
-
-```bash
-# Generate golden reference (requires Theory_v8.py from main branch):
-python test_regression.py generate
-
-# Test refactored code against golden reference:
-python test_regression.py test
-```
-
-Tests use exact floating-point equality (not tolerances) against 8 parameter combinations covering the full sweep ranges.
+Notes:
+- Golden tests in `tests/test_golden.py` require legacy `Theory_v8.py` at `../main/Theory_v8.py` (relative to this worktree).
+- Tests are script-style and intended to be run with `python3`, not necessarily via `pytest`.
 
 ## Dependencies
 
@@ -134,4 +165,4 @@ Tests use exact floating-point equality (not tolerances) against 8 parameter com
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+MIT; see [LICENSE](LICENSE).

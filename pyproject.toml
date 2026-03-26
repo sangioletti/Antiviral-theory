@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "antiviral-theory"
+version = "0.1.0"
+description = "NP-virus binding theory: multivalent receptor-ligand forces with steric repulsion from grafted polymers"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "typer",
+]
+
+[project.scripts]
+antiviral = "antiviral.run_calculations:app"
