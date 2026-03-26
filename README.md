@@ -107,7 +107,7 @@ Note: `start:stop:step` uses `numpy.arange`, so the stop value is not guaranteed
 ### `sweep`
 
 For each `(sigma, kEff, kEffRep, Nrep)` combination:
-- Data file: `s{s}_k{k}_kr{kr}_Nsteric{n}[ _reduced ].dat`
+- Data file: `s{s}_k{k}_kr{kr}_Nsteric{n}[_reduced].dat`
 - Plots (unless `--no-plot`):
   - `_Favg.pdf`
   - `_FgivenB.pdf`
@@ -116,10 +116,12 @@ For each `(sigma, kEff, kEffRep, Nrep)` combination:
 Columns in `.dat`:
 `DG`, `<Fr>`, `<Fz>`, `<Fr>(pN)`, `<Fz>(pN)`, `<Fr|B>`, `<Fz|B>`
 
+When `--output-units reduced` is used, the `pN` columns are `nan` by design.
+
 ### `nl-sweep`
 
 For each `sigma`:
-- Data file: `NLsweep_DG{DG}_s{sigma}[ _reduced ].dat`
+- Data file: `NLsweep_DG{DG}_s{sigma}[_reduced].dat`
 - Plots depend on `--plot-mode` (`favg`, `fgivenb`, `combined`, `disjointed`, `all`)
 
 ## Parameters
