@@ -146,7 +146,11 @@ for panel_idx, (DG0, ax) in enumerate(zip(DG0_values_fig3, axes)):
     ax.set_xlabel(r"$N_L$", fontsize=13)
     if panel_idx == 0:
         ax.set_ylabel(r"$|F^*|$", fontsize=13)
-    ax.set_title(rf"$\Delta G_0^* = {DG0}$", fontsize=12)
+    ax.text(0.95, 0.05, rf"$\Delta G^0 = {DG0}\, k_BT$",
+            fontsize=15, fontweight='bold',
+            transform=ax.transAxes, ha='right', va='bottom',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                      edgecolor='none', alpha=0.8))
     ax.set_xticks([2, 3, 4, 5, 6, 8, 10, 12, 15, 20])
     ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     if is_last:

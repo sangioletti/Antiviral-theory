@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Consolidated Figure 2 script.
-Generates: NEW_Fig2, NEW_Fig2_SI, Fig2_diff_rigidity
-  - NEW_Fig2:      |Fr*| vs DG0, 3 sigma* panels, KD secondary axis
-  - NEW_Fig2_SI:   |Fz*| vs DG0, 3 sigma* panels, KD secondary axis
+Generates: Fig2, Fig2_SI, Fig2_diff_rigidity
+  - Fig2:      |Fr*| vs DG0, 3 sigma* panels, KD secondary axis
+  - Fig2_SI:   |Fz*| vs DG0, 3 sigma* panels, KD secondary axis
   - Fig2_diff_rigidity: |Fr*| vs DG0 with Nmono=5 (stiffer polymer)
 """
 
@@ -200,20 +200,20 @@ def plot_fig2(results, DG0_values, force_key, ylabel, output_name,
 
 
 # ════════════════════════════════════════════════════════════════════
-# NEW_Fig2 (|Fr*| vs DG0, 39 points, KD axis)
+# Fig2 (|Fr*| vs DG0, 39 points, KD axis)
 # ════════════════════════════════════════════════════════════════════
-print("\n" + "="*60 + "\nNEW_Fig2\n" + "="*60)
+print("\n" + "="*60 + "\nFig2\n" + "="*60)
 res2 = sweep_fig2(DG0_39, os.path.join(basedir, 'Fig2_cache.npz'))
-plot_fig2(res2, DG0_39, 'Fr', r"$|F_r^*|$", "NEW_Fig2",
+plot_fig2(res2, DG0_39, 'Fr', r"$|F_r^*|$", "Fig2",
           add_kd=True, sigma_inside=True)
 
 
 # ════════════════════════════════════════════════════════════════════
-# NEW_Fig2_SI (|Fz*| vs DG0, 75 points, KD axis)
+# Fig2_SI (|Fz*| vs DG0, 75 points, KD axis)
 # ════════════════════════════════════════════════════════════════════
-print("\n" + "="*60 + "\nNEW_Fig2_SI\n" + "="*60)
+print("\n" + "="*60 + "\nFig2_SI\n" + "="*60)
 res2_si = sweep_fig2(DG0_75, os.path.join(basedir, 'Fig2_SI_cache.npz'))
-plot_fig2(res2_si, DG0_75, 'Fz', r"$|F_z^*|$", "NEW_Fig2_SI",
+plot_fig2(res2_si, DG0_75, 'Fz', r"$|F_z^*|$", "Fig2_SI",
           add_kd=True, sigma_inside=True)
 
 
